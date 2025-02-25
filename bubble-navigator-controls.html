@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Floating Bubble Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; }
+        canvas { display: block; }
+        #controls { position: absolute; top: 10px; left: 10px; background: white; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <label>Bubbles: <input type="number" id="bubbleCount" value="10" min="1"></label>
+        <label>Speed: <input type="number" id="bubbleSpeed" value="2" min="0.1" step="0.1"></label>
+        <label>Size: <input type="number" id="bubbleSize" value="40" min="5"></label>
+        <button onclick="resetBubbles()">Reset</button>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        class Bubble {
+            constructor(x, y, radius, color, speedX, speedY) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.speedX = speedX;
+                this.speedY = speedY;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+            update(bubbles) {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) this.speedX *= -1;
+                if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) this.speedY *= -1;
+                
+                for (let bubble of bubbles) {
+                    if (bubble !== this && this.checkCollision(bubble)) {
+                        this.speedX *= -1;
+                        this.speedY *= -1;
+                        bubble.speedX *= -1;
+                        bubble.speedY *= -1;
+                    }
+                }
+                this.draw();
+            }
+            checkCollision(other) {
+                const dx = this.x - other.x;
+                const dy = this.y - other.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                return distance < this.radius + other.radius;
+            }
+        }
+
+        let bubbles = [];
+
+        function resetBubbles() {
+            bubbles = [];
+            let count = parseInt(document.getElementById("bubbleCount").value);
+            let speedFactor = parseFloat(document.getElementById("bubbleSpeed").value);
+            let sizeFactor = parseInt(document.getElementById("bubbleSize").value);
+            
+            for (let i = 0; i < count; i++) {
+                let radius = Math.random() * sizeFactor + 10;
+                let x = Math.random() * (canvas.width - radius * 2) + radius;
+                let y = Math.random() * (canvas.height - radius * 2) + radius;
+                let speedX = (Math.random() - 0.5) * speedFactor;
+                let speedY = (Math.random() - 0.5) * speedFactor;
+                bubbles.push(new Bubble(x, y, radius, "rgba(255, 255, 255, 0.6)", speedX, speedY));
+            }
+        }
+
+        let player = new Bubble(canvas.width / 2, canvas.height / 2, 20, "red", 0, 0);
+        let keys = {};
+
+        window.addEventListener("keydown", (e) => keys[e.code] = true);
+        window.addEventListener("keyup", (e) => keys[e.code] = false);
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            bubbles.forEach(bubble => bubble.update(bubbles));
+
+            if (keys["ArrowUp"]) player.y -= 2;
+            if (keys["ArrowDown"]) player.y += 2;
+            if (keys["ArrowLeft"]) player.x -= 2;
+            if (keys["ArrowRight"]) player.x += 2;
+
+            player.draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        resetBubbles();
+        gameLoop();
+    </script>
+</body>
+</html>
