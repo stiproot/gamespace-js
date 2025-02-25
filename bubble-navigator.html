@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Floating Bubble Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        class Bubble {
+            constructor(x, y, radius, color, speedX, speedY) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.speedX = speedX;
+                this.speedY = speedY;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) this.speedX *= -1;
+                if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) this.speedY *= -1;
+                this.draw();
+            }
+        }
+
+        let bubbles = [];
+        for (let i = 0; i < 10; i++) {
+            let radius = Math.random() * 40 + 10;
+            let x = Math.random() * (canvas.width - radius * 2) + radius;
+            let y = Math.random() * (canvas.height - radius * 2) + radius;
+            let speedX = (Math.random() - 0.5) * 2;
+            let speedY = (Math.random() - 0.5) * 2;
+            bubbles.push(new Bubble(x, y, radius, "rgba(255, 255, 255, 0.6)", speedX, speedY));
+        }
+
+        let player = new Bubble(canvas.width / 2, canvas.height / 2, 20, "red", 0, 0);
+        let keys = {};
+
+        window.addEventListener("keydown", (e) => keys[e.code] = true);
+        window.addEventListener("keyup", (e) => keys[e.code] = false);
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            bubbles.forEach(bubble => bubble.update());
+
+            if (keys["ArrowUp"]) player.y -= 2;
+            if (keys["ArrowDown"]) player.y += 2;
+            if (keys["ArrowLeft"]) player.x -= 2;
+            if (keys["ArrowRight"]) player.x += 2;
+
+            player.draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
