@@ -36,8 +36,10 @@
             update() {
                 this.x += this.speedX;
                 this.y += this.speedY;
-                if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) this.speedX *= -1;
-                if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) this.speedY *= -1;
+
+                if (this.x - this.radius <= 0 || this.x + this.radius >= canvas.width) this.speedX *= -1;
+                if (this.y - this.radius <= 0 || this.y + this.radius >= canvas.height) this.speedY *= -1;
+
                 this.draw();
             }
         }

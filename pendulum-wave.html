@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pendulum Wave Game</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #1a1a2e; /* Deep blue background */
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+        canvas {
+            background-color: #0f0c29; /* Darker canvas background */
+            border: 2px solid #00cyan;
+            display: block;
+        }
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none; /* Hidden by default */
+            font-size: 24px;
+            border: 1px solid #00cyan;
+        }
+        #message-box button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            background-color: #16213e;
+            color: #00cyan;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        #message-box button:hover {
+            background-color: #00cyan;
+            color: #16213e;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="message-box">
+        <p id="message-text"></p>
+        <button id="restart-button">Play Again</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const messageBox = document.getElementById('message-box');
+    const messageText = document.getElementById('message-text');
+    const restartButton = document.getElementById('restart-button');
+
+
+    // Set canvas dimensions
+    canvas.width = 800;
+    canvas.height = 600;
+
+    // --- Game State ---
+    let gameOver = false;
+
+    // --- Player Ball ---
+    const player = {
+        x: 50,
+        y: canvas.height / 2,
+        radius: 12,
+        color: '#39ff14', // Neon green
+        shadowColor: 'rgba(57, 255, 20, 0.7)',
+        speed: 4
+    };
+
+    // --- Pendulum Properties ---
+    const pendulums = [];
+    const numPendulums = 25;
+    const minLength = 120;
+    const maxLength = 450;
+    // Center the pendulum wave
+    const startX = (canvas.width - (numPendulums - 1) * 20) / 2;
+
+
+    function initializePendulums() {
+        pendulums.length = 0; // Clear existing pendulums
+        for (let i = 0; i < numPendulums; i++) {
+            // Create a non-linear distribution for more interesting wave patterns
+            const length = minLength + (maxLength - minLength) * Math.pow(i / (numPendulums - 1), 2);
+            pendulums.push({
+                length: length,
+                angle: Math.PI / 3, // Initial angle
+                angularVelocity: 0,
+                bob: {
+                    x: 0,
+                    y: 0,
+                    radius: 8,
+                    // HSL for vibrant, cycling colors
+                    color: `hsl(${(i * 360 / numPendulums)}, 100%, 50%)`
+                },
+                origin: {
+                    x: startX + i * 20,
+                    y: 20 // Hang from the top
+                }
+            });
+        }
+    }
+
+
+    // --- Keyboard Input Handling ---
+    const keys = {
+        ArrowUp: false,
+        ArrowDown: false,
+        ArrowLeft: false,
+        ArrowRight: false
+    };
+
+    // Event listeners to track key state
+    window.addEventListener('keydown', (e) => { if (e.key in keys) keys[e.key] = true; });
+    window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
+    restartButton.addEventListener('click', () => {
+        document.location.reload();
+    });
+
+
+    // --- Game Logic Functions ---
+
+    function movePlayer() {
+        if (gameOver) return;
+
+        let dx = 0;
+        let dy = 0;
+
+        // Determine movement direction based on keys pressed
+        if (keys.ArrowUp) dy -= player.speed;
+        if (keys.ArrowDown) dy += player.speed;
+        if (keys.ArrowLeft) dx -= player.speed;
+        if (keys.ArrowRight) dx += player.speed;
+
+        // Update player position
+        player.x += dx;
+        player.y += dy;
+
+        // Canvas boundary collision detection
+        if (player.x - player.radius < 0) player.x = player.radius;
+        if (player.x + player.radius > canvas.width) player.x = canvas.width - player.radius;
+        if (player.y - player.radius < 0) player.y = player.radius;
+        if (player.y + player.radius > canvas.height) player.y = canvas.height - player.radius;
+    }
+
+
+    function updatePendulums() {
+        const gravity = 0.01; // Adjusted for a more dynamic feel
+        pendulums.forEach(p => {
+            // Physics calculation for pendulum swing
+            const angularAcceleration = -gravity / p.length * Math.sin(p.angle);
+            p.angularVelocity += angularAcceleration;
+            p.angle += p.angularVelocity;
+
+            // Calculate bob position based on angle and length
+            p.bob.x = p.origin.x + p.length * Math.sin(p.angle);
+            p.bob.y = p.origin.y + p.length * Math.cos(p.angle);
+        });
+    }
+
+
+    function checkCollisions() {
+        if (gameOver) return;
+        for (const p of pendulums) {
+            const dx = player.x - p.bob.x;
+            const dy = player.y - p.bob.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // If distance is less than the sum of radii, a collision occurred
+            if (distance < player.radius + p.bob.radius) {
+                endGame(false); // Player lost
+                break;
+            }
+        }
+    }
+
+    function checkWinCondition() {
+        if (gameOver) return;
+        // Win if the player reaches the right side of the canvas
+        if (player.x > canvas.width - player.radius * 2) {
+            endGame(true); // Player won
+        }
+    }
+
+
+    // --- Drawing Functions ---
+
+    function drawPlayer(ctx) {
+        ctx.save();
+        ctx.beginPath();
+        // Add a shadow for a glow effect
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = player.shadowColor;
+        ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        ctx.fillStyle = player.color;
+        ctx.fill();
+        ctx.closePath();
+        ctx.restore();
+    }
+
+
+    function drawPendulums(ctx) {
+        pendulums.forEach(p => {
+            // Draw the pendulum string
+            ctx.beginPath();
+            ctx.moveTo(p.origin.x, p.origin.y);
+            ctx.lineTo(p.bob.x, p.bob.y);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.stroke();
+
+            // Draw the pendulum bob with a glow effect
+            ctx.save();
+            ctx.beginPath();
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = p.bob.color;
+            ctx.arc(p.bob.x, p.bob.y, p.bob.radius, 0, Math.PI * 2);
+            ctx.fillStyle = p.bob.color;
+            ctx.fill();
+            ctx.restore();
+        });
+    }
+
+    // --- Main Game Loop ---
+
+    function draw() {
+        // Clear the canvas for the next frame
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawPendulums(ctx);
+        drawPlayer(ctx);
+    }
+
+
+    function gameLoop() {
+        if (gameOver) return;
+
+        movePlayer();
+        updatePendulums();
+        checkCollisions();
+        checkWinCondition();
+        draw();
+
+        // Request the next frame
+        requestAnimationFrame(gameLoop);
+    }
+
+
+    function showMessage(message) {
+        messageText.textContent = message;
+        messageBox.style.display = 'block';
+    }
+
+
+    function endGame(isWin) {
+        gameOver = true;
+        if (isWin) {
+            showMessage("You Win!");
+        } else {
+            showMessage("Game Over!");
+        }
+    }
+
+
+    // --- Start the game ---
+    initializePendulums();
+    gameLoop();
+
+
+</script>
+
+</body>
+</html>

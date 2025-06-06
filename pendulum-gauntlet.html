@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Pendulum Gauntlet</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            display: none; /* Hidden by default */
+            font-size: 28px;
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.6);
+        }
+        #message-box button {
+            margin-top: 25px;
+            padding: 12px 25px;
+            border-radius: 8px;
+            border: none;
+            background-color: #1a1a2e;
+            color: #00ffff;
+            cursor: pointer;
+            font-size: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        #message-box button:hover {
+            background-color: #00ffff;
+            color: #1a1a2e;
+        }
+    </style>
+</head>
+<body>
+    <div id="message-box">
+        <p id="message-text"></p>
+        <button id="restart-button">Play Again</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // --- Basic Setup ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+        const restartButton = document.getElementById('restart-button');
+        restartButton.addEventListener('click', () => document.location.reload());
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- Game State ---
+        let gameOver = false;
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1, 1000);
+        pointLight.position.set(0, 0, 0);
+        scene.add(pointLight);
+
+        // --- Player ---
+        const playerGeometry = new THREE.SphereGeometry(1.5, 32, 32);
+        const playerMaterial = new THREE.MeshStandardMaterial({
+            color: 0x39ff14, // Neon green
+            emissive: 0x39ff14, // Make it glow
+            emissiveIntensity: 0.7,
+            metalness: 0.1,
+            roughness: 0.3,
+        });
+        const player = new THREE.Mesh(playerGeometry, playerMaterial);
+        player.position.z = 10; // Start in front of camera
+        scene.add(player);
+
+        // --- Pendulums ---
+        const pendulums = [];
+        const numPendulums = 50;
+        const gauntletLength = 400;
+
+        for (let i = 0; i < numPendulums; i++) {
+            const pendulumLength = 20 + Math.random() * 20;
+            const angle = Math.random() * Math.PI * 2; // Random initial angle
+            const angularVelocity = 0;
+            
+            // Bob (the swinging ball)
+            const bobGeometry = new THREE.SphereGeometry(1, 16, 16);
+            const bobMaterial = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(`hsl(${(i * 360 / numPendulums)}, 100%, 50%)`),
+                emissive: new THREE.Color(`hsl(${(i * 360 / numPendulums)}, 100%, 50%)`),
+                emissiveIntensity: 0.8,
+                metalness: 0.1,
+                roughness: 0.3
+            });
+            const bob = new THREE.Mesh(bobGeometry, bobMaterial);
+
+            // String (the line)
+            const stringMaterial = new THREE.LineBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.5 });
+            const stringGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -pendulumLength, 0)]);
+            const string = new THREE.Line(stringGeometry, stringMaterial);
+
+            // Pivot point for the pendulum
+            const pivot = new THREE.Object3D();
+            pivot.position.set(
+                (Math.random() - 0.5) * 50, // Random x
+                (Math.random() - 0.5) * 40, // Random y
+                -i * (gauntletLength / numPendulums) // Spread along z-axis
+            );
+
+            pivot.add(bob);
+            pivot.add(string);
+            scene.add(pivot);
+
+            pendulums.push({ pivot, bob, string, length: pendulumLength, angle, angularVelocity });
+        }
+
+        // --- Controls ---
+        const playerSpeed = 0.3;
+        const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+        window.addEventListener('keydown', (e) => { if(e.key in keys) keys[e.key] = true; });
+        window.addEventListener('keyup', (e) => { if(e.key in keys) keys[e.key] = false; });
+
+        function movePlayer() {
+            if (keys.ArrowUp) player.position.y += playerSpeed;
+            if (keys.ArrowDown) player.position.y -= playerSpeed;
+            if (keys.ArrowLeft) player.position.x -= playerSpeed;
+            if (keys.ArrowRight) player.position.x += playerSpeed;
+
+            // Player moves forward automatically
+            player.position.z -= 0.5;
+        }
+
+        // --- Game Logic ---
+        function updatePendulums() {
+            const gravity = 0.0005;
+            pendulums.forEach(p => {
+                const angularAcceleration = -gravity * Math.sin(p.angle);
+                p.angularVelocity += angularAcceleration;
+                p.angle += p.angularVelocity;
+
+                // Update bob and string positions based on the new angle
+                p.bob.position.x = p.length * Math.sin(p.angle);
+                p.bob.position.y = -p.length * Math.cos(p.angle); // Swinging motion on x-y plane
+                p.string.geometry.attributes.position.setXYZ(1, p.bob.position.x, p.bob.position.y, p.bob.position.z);
+                p.string.geometry.attributes.position.needsUpdate = true;
+            });
+        }
+        
+        function checkCollisions() {
+            const playerWorldPos = new THREE.Vector3();
+            player.getWorldPosition(playerWorldPos);
+
+            for(const p of pendulums) {
+                const bobWorldPos = new THREE.Vector3();
+                p.bob.getWorldPosition(bobWorldPos);
+
+                const distance = playerWorldPos.distanceTo(bobWorldPos);
+                if (distance < player.geometry.parameters.radius + p.bob.geometry.parameters.radius) {
+                    endGame(false); // Collision
+                    return;
+                }
+            }
+        }
+        
+        function checkWinCondition() {
+            if (player.position.z < -gauntletLength - 20) {
+                 endGame(true); // Reached the end
+            }
+        }
+        
+        function endGame(isWin) {
+            if (gameOver) return;
+            gameOver = true;
+            messageText.textContent = isWin ? "You Survived!" : "Game Over!";
+            messageBox.style.display = 'block';
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            if (gameOver) return;
+            requestAnimationFrame(animate);
+
+            movePlayer();
+            updatePendulums();
+            checkCollisions();
+            checkWinCondition();
+
+            // Make the camera follow the player smoothly
+            camera.position.x += (player.position.x - camera.position.x) * 0.1;
+            camera.position.y += (player.position.y - camera.position.y) * 0.1;
+            camera.position.z = player.position.z + 20;
+
+            // Make the point light follow the player
+            pointLight.position.copy(player.position);
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
