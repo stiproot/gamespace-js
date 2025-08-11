@@ -1,10 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 
-declare_id!("BqvmMSVZZ6fNXHegCahrgSkD6STpiBASVpvbsAgmbNxC");
+declare_id!("6aaBth4uQFtvn71kXFBrzwb7FN8hXoSJ2oJSoVosF52K");
 
-// Hardcoded trusted service public key - replace with your actual trusted service key
-const TRUSTED_SERVICE_PUBKEY: &str = "11111111111111111111111111111111";
+const TRUSTED_SERVICE_PUBKEY: &str = "63vZVZ5UFKn7Jk8CCD3QWfoyGaNTLrVzKac4KVrCBpDV";
 
 #[program]
 pub mod sol_manager {
@@ -38,19 +37,9 @@ pub mod sol_manager {
         ];
         let signer_seeds = &[&manager_seeds[..]];
 
-        // Transfer SOL from PDA to recipient
-        let transfer_instruction = system_program::Transfer {
-            from: ctx.accounts.manager.to_account_info(),
-            to: ctx.accounts.recipient.to_account_info(),
-        };
-
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.system_program.to_account_info(),
-            transfer_instruction,
-            signer_seeds,
-        );
-
-        system_program::transfer(cpi_ctx, amount)?;
+        // Transfer SOL from PDA to recipient using invoke_signed
+        **ctx.accounts.manager.to_account_info().try_borrow_mut_lamports()? -= amount;
+        **ctx.accounts.recipient.to_account_info().try_borrow_mut_lamports()? += amount;
 
         msg!("Transferred {} lamports to {:?}", amount, ctx.accounts.recipient.key());
         Ok(())
